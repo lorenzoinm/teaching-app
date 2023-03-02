@@ -75,3 +75,16 @@ services:
       - env/influxdb_logger.env
       - env/comm/rabbitmq_client.env
       - env/comm/influxdb_client.env
+
+  style_transmitter:
+    image: "lorenzoinm/teaching-can:${ARCH:-amd64}"
+    container_name: style_transmitter
+    depends_on:
+      - rabbitmq
+      - rl_predictor
+    restart: on-failure
+    env_file:
+      - env/comm/rabbitmq_client.env
+      - env/style_transmitter.env
+    #network_mode: "host"
+    privileged: true
