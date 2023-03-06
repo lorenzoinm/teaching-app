@@ -7,9 +7,9 @@ echo
 CAN=$1
 SERVICE=$2
 DOCKERPID=$(docker inspect -f '{{.State.Pid}}' $2)
-
+modprobe can-gw vxcan
 if [[ -z $DOCKERPID ]]
-    then 
+    then
     echo "Service $2 has not been found"
     exit -1
 fi
@@ -22,11 +22,31 @@ fi
 
 if [[ $CAN == vcan* ]]
     then
-    ip link add dev vcan0 type vcan
+    ip link add dev $CAN type vcan
+    ip link set $CAN netns $DOCKERPID
+    nsenter -t $DOCKERPID -n ip link set $CAN up
 fi
-ip link set $CAN netns $DOCKERPID
+
 if [[ $CAN == can* ]]
     then
-    nsenter -t $DOCKERPID -n ip link set $CAN type can bitrate 500000
+    ip link add vxcan0 type vxcan peer name vxcan1 netns $DOCKERPID
+    RULES=$(cangw -L)
+
+    if [[ $RULES != *"cangw -A -s $CAN -d vxcan0 -e"* ]]
+        then
+        cangw -A -s $CAN -d vxcan0 -e
+        else
+        echo "Rule already exists: cangw -A -s $CAN -d vxcan0 -e"
+    fi
+    if [[ $RULES != *"cangw -A -s vxcan0 -d $CAN -e"* ]]
+        then
+        cangw -A -s vxcan0 -d $CAN -e
+        else
+        echo "Rule already exists: cangw -A -s vxcan0 -d $CAN -e "
+    fi
+
+    ip link set vxcan0 up
+    ip link set $CAN type can bitrate 500000
+    ip link set $CAN up
+    nsenter -t $DOCKERPID -n ip link set vxcan1 up
 fi
-nsenter -t $DOCKERPID -n ip link set $CAN up
